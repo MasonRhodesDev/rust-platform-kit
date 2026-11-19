@@ -34,7 +34,6 @@ pub async fn current(idle_after: Duration) -> Result<Presence, Error> {
 async fn read(conn: &zbus::Connection, path: OwnedObjectPath) -> Option<Seen> {
     let session = LogindSessionProxy::builder(conn)
         .path(path)
-        .ok()?
         .cache_properties(CacheProperties::No)
         .build()
         .await
