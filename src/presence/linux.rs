@@ -19,34 +19,41 @@ pub async fn current(idle_after: Duration) -> Result<Presence, Error> {
     let manager = LogindManagerProxy::new(&conn).await.map_err(backend)?;
     let uid = unsafe { libc::getuid() };
     let mut seen = Vec::new();
+    let mut failed = None;
     for (_id, owner, _user, _seat, path) in manager.list_sessions().await.map_err(backend)? {
         if owner == uid {
-            if let Some(s) = read(&conn, path).await {
-                seen.push(s);
+            match read(&conn, path).await {
+                Ok(Some(s)) => seen.push(s),
+                Ok(None) => {}
+                Err(e) => failed = Some(e),
             }
         }
     }
-    let s = choose(&seen).ok_or(Error::NoSession)?;
+    let s = match (choose(&seen), failed) {
+        (Some(s), _) if s.active => s,
+        (_, Some(e)) => return Err(backend(e)),
+        (Some(s), None) => s,
+        (None, None) => return Err(Error::NoSession),
+    };
     let idle = s.idle_hint && idle_long_enough(s.idle_since_usec, SystemTime::now(), idle_after);
     Ok(Presence::decide(s.locked, !s.active, idle))
 }
 
-async fn read(conn: &zbus::Connection, path: OwnedObjectPath) -> Option<Seen> {
+async fn read(conn: &zbus::Connection, path: OwnedObjectPath) -> zbus::Result<Option<Seen>> {
     let session = LogindSessionProxy::builder(conn)
         .path(path)
         .cache_properties(CacheProperties::No)
         .build()
-        .await
-        .ok()?;
-    if !is_graphical_type(session.session_type().await.ok()?.as_str()) {
-        return None;
+        .await?;
+    if !is_graphical_type(session.session_type().await?.as_str()) {
+        return Ok(None);
     }
-    Some(Seen {
-        active: session.state().await.ok()? == "active",
-        locked: session.locked_hint().await.ok()?,
-        idle_hint: session.inner().get_property("IdleHint").await.ok()?,
-        idle_since_usec: session.inner().get_property("IdleSinceHint").await.ok()?,
-    })
+    Ok(Some(Seen {
+        active: session.state().await? == "active",
+        locked: session.locked_hint().await?,
+        idle_hint: session.inner().get_property("IdleHint").await?,
+        idle_since_usec: session.inner().get_property("IdleSinceHint").await?,
+    }))
 }
 
 fn choose(seen: &[Seen]) -> Option<Seen> {

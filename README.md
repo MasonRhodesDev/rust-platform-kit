@@ -4,7 +4,7 @@ Two OS facilities that desktop daemons need and that existing crates cover only 
 
 | Feature | What it answers | Linux | macOS | Windows |
 |---|---|---|---|---|
-| `presence` | Is a person at this machine: `Active`, `Idle`, `Locked`, or `Inactive` (their session is in the background) | logind: the calling user's graphical session, its `LockedHint`, `IdleHint`, `IdleSinceHint` and `State` | `CGSessionCopyCurrentDictionary`, and seconds since the last hardware input event | `Error::Unsupported` |
+| `presence` | Is a person at this machine: `Active`, `Idle`, `Locked`, or `Inactive` (their session is in the background) | logind: the calling user's graphical session, its `LockedHint`, `IdleHint`, `IdleSinceHint` and `State` | `CGSessionCopyCurrentDictionary`, and seconds since the last input event | `Error::Unsupported` |
 | `permissions` | Accessibility, Input Monitoring, event posting and microphone access | Always `Granted` | TCC checks and prompts | Always `Granted` |
 
 Both features are on by default. The minimum Rust is 1.89. On macOS the minimum is 10.15.
@@ -49,7 +49,7 @@ async fn main() {
 ## Presence
 
 - `current(idle_after)` reports `Idle` once the person has been idle for `idle_after`.
-  - On macOS that is time since the last input event the HID system saw. Input a program posts at the HID or session event tap counts too, as a person would; only events posted at the annotated session tap do not. `cargo run --example idle_taps` measures this on the current Mac. A program that injects input has to discount its own events.
+  - On macOS that is time since the last input event the HID system saw. On the macOS CI runner, input a program posts at the HID or session event tap counts too, and events posted at the annotated session tap do not. `cargo run --example idle_taps` measures it on any Mac. A program that injects input has to discount its own events.
   - On Linux the session's idle daemon must set logind's `IdleHint` first, and `idle_after` is then measured from `IdleSinceHint`, so it adds to the desktop's own idle delay. If nothing in the session sets `IdleHint`, Linux never reports `Idle`.
   - An `idle_after` of zero means always `Idle` on macOS, and `Idle` whenever the hint is set on Linux.
 - A locked screen is `Locked` before anything else. A session that is not in the foreground (another user, another VT) is `Inactive`.

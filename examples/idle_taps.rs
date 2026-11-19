@@ -8,6 +8,7 @@ fn main() {
         fn CGEventSourceSecondsSinceLastEventType(state: i32, event_type: u32) -> f64;
         fn CGEventCreateKeyboardEvent(source: *const c_void, key: u16, down: bool) -> *mut c_void;
         fn CGEventPost(tap: u32, event: *mut c_void);
+        fn CGPreflightPostEventAccess() -> bool;
     }
     #[link(name = "CoreFoundation", kind = "framework")]
     extern "C" {
@@ -23,11 +24,18 @@ fn main() {
     let post = |tap: u32| unsafe {
         for down in [true, false] {
             let event = CGEventCreateKeyboardEvent(std::ptr::null(), SHIFT, down);
-            CGEventPost(tap, event);
-            CFRelease(event);
+            if !event.is_null() {
+                CGEventPost(tap, event);
+                CFRelease(event);
+            }
         }
     };
 
+    if !unsafe { CGPreflightPostEventAccess() } {
+        println!("this process may not post events; grant it Accessibility and run again");
+        return;
+    }
+    println!("leave the keyboard and mouse alone for the next 12 seconds");
     for (name, tap) in [("session", 1u32), ("annotated-session", 2), ("hid", 0)] {
         std::thread::sleep(Duration::from_secs(3));
         let before = idle();
