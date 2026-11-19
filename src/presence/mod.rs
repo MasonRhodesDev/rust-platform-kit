@@ -44,7 +44,7 @@ pub enum Error {
     Unsupported,
     #[error("no graphical session for this user")]
     NoSession,
-    #[error("{0}")]
+    #[error(transparent)]
     Backend(Box<dyn std::error::Error + Send + Sync>),
 }
 

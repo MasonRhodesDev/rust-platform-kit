@@ -36,8 +36,11 @@ async fn main() {
     for p in [Permission::Accessibility, Permission::InputMonitoring] {
         match permissions::access(p) {
             Access::Granted => {}
-            Access::Undecided => permissions::request(p),
-            _ => eprintln!("{}", p.remedy("my-daemon")),
+            Access::Restricted => eprintln!("{p:?} is blocked by a device policy"),
+            _ => {
+                permissions::request(p);
+                eprintln!("{}", p.remedy("my-daemon"));
+            }
         }
     }
 }
@@ -47,7 +50,8 @@ async fn main() {
 
 - `current(idle_after)` reports `Idle` once the person has been idle for `idle_after`.
   - On macOS that is time since the last keyboard, mouse or trackpad event from hardware. Input that a program posts does not count.
-  - On Linux the session's idle daemon must set logind's `IdleHint` first, and `idle_after` is then measured from `IdleSinceHint`. If nothing in the session sets `IdleHint`, Linux never reports `Idle`.
+  - On Linux the session's idle daemon must set logind's `IdleHint` first, and `idle_after` is then measured from `IdleSinceHint`, so it adds to the desktop's own idle delay. If nothing in the session sets `IdleHint`, Linux never reports `Idle`.
+  - An `idle_after` of zero means always `Idle` on macOS, and `Idle` whenever the hint is set on Linux.
 - A locked screen is `Locked` before anything else. A session that is not in the foreground (another user, another VT) is `Inactive`.
 - On Linux it needs a tokio runtime, and it opens a system bus connection per call, so wrap it in a timeout as above.
 - It reads the calling user's sessions only. With no graphical session for that user, it returns `Error::NoSession`, never a guess.
@@ -55,7 +59,8 @@ async fn main() {
 ## Permissions
 
 - `access` is a snapshot. `request` raises the system prompt and returns at once; read `access` again later for the answer.
-- Accessibility and event posting can only report `Granted` or `Denied`, because macOS does not say whether it has asked. Input Monitoring and the microphone can also report `Undecided`. The microphone reports `Restricted` when a device policy blocks it, which the user cannot change in Settings.
+- Accessibility and event posting can only report `Granted` or `Denied`, because macOS does not say whether it has asked, so request them whenever they are not `Granted`. The Accessibility prompt shows on every request. Input Monitoring and the microphone can also report `Undecided`, and only prompt once; after a denial `request` does nothing and the user has to change it in Settings.
+- The microphone reports `Restricted` when a device policy blocks it. The user cannot change that in Settings, so `remedy` does not apply to it.
 - macOS shows the prompt under the binary's path, so ask from the process that needs the access.
 - A microphone prompt needs `NSMicrophoneUsageDescription` in the program's Info.plist. A bare binary can embed one with the linker's `-sectcreate __TEXT __info_plist`. Without it, macOS ends the process when it asks.
 

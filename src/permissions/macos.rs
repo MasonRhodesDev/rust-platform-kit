@@ -98,3 +98,15 @@ pub fn request(permission: Permission) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hid_access_follows_iohid_access_type() {
+        assert_eq!(from_hid_access(0), Access::Granted);
+        assert_eq!(from_hid_access(1), Access::Denied);
+        assert_eq!(from_hid_access(2), Access::Undecided);
+    }
+}

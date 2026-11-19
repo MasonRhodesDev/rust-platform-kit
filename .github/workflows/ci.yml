@@ -17,7 +17,11 @@ jobs:
     uses: MasonRhodesDev/packaging-workflows/.github/workflows/rust-ci.yml@v1
 
   msrv:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.89
@@ -39,5 +43,5 @@ jobs:
       - run: cargo clippy --no-default-features --features presence --locked -- -D warnings
       - run: cargo clippy --no-default-features --features permissions --locked -- -D warnings
       - run: cargo test --locked
-      - run: cargo test --doc --locked
       - run: cargo run --example probe --locked
+      - run: cargo run --example idle_taps --locked

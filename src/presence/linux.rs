@@ -1,53 +1,57 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use logind_session::{is_graphical_type, LogindManagerProxy, LogindSessionProxy};
+use zbus::proxy::CacheProperties;
+use zbus::OwnedObjectPath;
 
 use super::{backend, Error, Presence};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Seen {
+    active: bool,
+    locked: bool,
+    idle_hint: bool,
+    idle_since_usec: u64,
+}
 
 pub async fn current(idle_after: Duration) -> Result<Presence, Error> {
     let conn = zbus::Connection::system().await.map_err(backend)?;
     let manager = LogindManagerProxy::new(&conn).await.map_err(backend)?;
     let uid = unsafe { libc::getuid() };
-    let mut chosen: Option<(bool, LogindSessionProxy<'_>)> = None;
+    let mut seen = Vec::new();
     for (_id, owner, _user, _seat, path) in manager.list_sessions().await.map_err(backend)? {
-        if owner != uid {
-            continue;
-        }
-        let Ok(session) = LogindSessionProxy::builder(&conn).path(path).build().await else {
-            continue;
-        };
-        if !session
-            .session_type()
-            .await
-            .is_ok_and(|t| is_graphical_type(t.as_str()))
-        {
-            continue;
-        }
-        let active = session.state().await.is_ok_and(|s| s == "active");
-        if active {
-            chosen = Some((true, session));
-            break;
-        }
-        if chosen.is_none() {
-            chosen = Some((false, session));
+        if owner == uid {
+            if let Some(s) = read(&conn, path).await {
+                seen.push(s);
+            }
         }
     }
-    let Some((active, session)) = chosen else {
-        return Err(Error::NoSession);
-    };
-    let locked = session.locked_hint().await.map_err(backend)?;
-    let hint: bool = session
-        .inner()
-        .get_property("IdleHint")
+    let s = choose(&seen).ok_or(Error::NoSession)?;
+    let idle = s.idle_hint && idle_long_enough(s.idle_since_usec, SystemTime::now(), idle_after);
+    Ok(Presence::decide(s.locked, !s.active, idle))
+}
+
+async fn read(conn: &zbus::Connection, path: OwnedObjectPath) -> Option<Seen> {
+    let session = LogindSessionProxy::builder(conn)
+        .path(path)
+        .ok()?
+        .cache_properties(CacheProperties::No)
+        .build()
         .await
-        .map_err(backend)?;
-    let since: u64 = session
-        .inner()
-        .get_property("IdleSinceHint")
-        .await
-        .map_err(backend)?;
-    let idle = hint && idle_long_enough(since, SystemTime::now(), idle_after);
-    Ok(Presence::decide(locked, !active, idle))
+        .ok()?;
+    if !is_graphical_type(session.session_type().await.ok()?.as_str()) {
+        return None;
+    }
+    Some(Seen {
+        active: session.state().await.ok()? == "active",
+        locked: session.locked_hint().await.ok()?,
+        idle_hint: session.inner().get_property("IdleHint").await.ok()?,
+        idle_since_usec: session.inner().get_property("IdleSinceHint").await.ok()?,
+    })
+}
+
+fn choose(seen: &[Seen]) -> Option<Seen> {
+    seen.iter().find(|s| s.active).or(seen.first()).copied()
 }
 
 fn idle_long_enough(since_usec: u64, now: SystemTime, idle_after: Duration) -> bool {
@@ -64,6 +68,30 @@ mod tests {
 
     fn at(secs: u64) -> SystemTime {
         UNIX_EPOCH + Duration::from_secs(secs)
+    }
+
+    fn session(active: bool, locked: bool) -> Seen {
+        Seen {
+            active,
+            locked,
+            idle_hint: false,
+            idle_since_usec: 0,
+        }
+    }
+
+    #[test]
+    fn the_active_graphical_session_wins_over_earlier_background_ones() {
+        let picked = choose(&[session(false, true), session(true, false)]);
+        assert_eq!(picked, Some(session(true, false)));
+    }
+
+    #[test]
+    fn with_no_active_session_the_first_graphical_one_is_reported() {
+        assert_eq!(
+            choose(&[session(false, true), session(false, false)]),
+            Some(session(false, true))
+        );
+        assert_eq!(choose(&[]), None);
     }
 
     #[test]
