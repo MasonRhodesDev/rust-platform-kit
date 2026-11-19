@@ -6,7 +6,7 @@ use core_foundation::string::{CFString, CFStringRef};
 use objc2::runtime::Bool;
 use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
 
-use super::{from_hid_access, Access, Permission};
+use super::{Access, Permission};
 
 const LISTEN_EVENT: u32 = 1;
 
@@ -30,6 +30,14 @@ extern "C" {
     fn IOHIDRequestAccess(request: u32) -> bool;
 }
 
+fn from_hid_access(value: u32) -> Access {
+    match value {
+        0 => Access::Granted,
+        1 => Access::Denied,
+        _ => Access::Undecided,
+    }
+}
+
 fn granted(yes: bool) -> Access {
     if yes {
         Access::Granted
@@ -40,13 +48,15 @@ fn granted(yes: bool) -> Access {
 
 fn microphone() -> Access {
     let Some(audio) = (unsafe { AVMediaTypeAudio }) else {
-        return Access::Denied;
+        return Access::Undecided;
     };
     let status = unsafe { AVCaptureDevice::authorizationStatusForMediaType(audio) };
     if status == AVAuthorizationStatus::Authorized {
         Access::Granted
     } else if status == AVAuthorizationStatus::NotDetermined {
         Access::Undecided
+    } else if status == AVAuthorizationStatus::Restricted {
+        Access::Restricted
     } else {
         Access::Denied
     }
@@ -61,7 +71,7 @@ pub fn access(permission: Permission) -> Access {
     }
 }
 
-pub fn request(permission: Permission) -> Access {
+pub fn request(permission: Permission) {
     match permission {
         Permission::Accessibility => {
             let prompt = unsafe { CFString::wrap_under_get_rule(kAXTrustedCheckOptionPrompt) };
@@ -87,5 +97,4 @@ pub fn request(permission: Permission) -> Access {
             }
         }
     }
-    access(permission)
 }

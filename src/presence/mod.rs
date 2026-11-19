@@ -10,6 +10,7 @@ mod macos;
 use macos as imp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Presence {
     Active,
     Idle,
@@ -18,7 +19,8 @@ pub enum Presence {
 }
 
 impl Presence {
-    pub fn decide(locked: bool, inactive: bool, idle: bool) -> Self {
+    #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
+    pub(crate) fn decide(locked: bool, inactive: bool, idle: bool) -> Self {
         if locked {
             Presence::Locked
         } else if inactive {
@@ -36,17 +38,19 @@ impl Presence {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error("presence is not implemented on this platform")]
     Unsupported,
-    #[error("no user session found")]
+    #[error("no graphical session for this user")]
     NoSession,
-    #[cfg(target_os = "linux")]
-    #[error(transparent)]
-    Logind(#[from] logind_session::Error),
-    #[cfg(target_os = "linux")]
-    #[error(transparent)]
-    Dbus(#[from] zbus::Error),
+    #[error("{0}")]
+    Backend(Box<dyn std::error::Error + Send + Sync>),
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn backend(e: impl std::error::Error + Send + Sync + 'static) -> Error {
+    Error::Backend(Box::new(e))
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
