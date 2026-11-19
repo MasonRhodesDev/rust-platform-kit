@@ -1,0 +1,34 @@
+[package]
+name = "rust-platform-kit"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+description = "Session presence and macOS privacy permissions behind one API on Linux and macOS"
+repository = "https://github.com/MasonRhodesDev/rust-platform-kit"
+categories = ["os"]
+
+[features]
+default = ["presence", "permissions"]
+presence = ["dep:logind-session", "dep:zbus", "dep:core-foundation"]
+permissions = ["dep:core-foundation", "dep:objc2", "dep:objc2-av-foundation", "dep:block2"]
+
+[dependencies]
+thiserror = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+logind-session = { version = "0.3", optional = true }
+zbus = { version = "6", default-features = false, features = ["tokio", "proxy"], optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = { version = "0.10", optional = true }
+objc2 = { version = "0.6", optional = true }
+objc2-av-foundation = { version = "0.3", default-features = false, features = ["std", "AVCaptureDevice", "AVMediaFormat", "block2"], optional = true }
+block2 = { version = "0.6", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[[example]]
+name = "probe"
+required-features = ["presence", "permissions"]

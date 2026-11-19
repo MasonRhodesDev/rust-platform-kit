@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    uses: MasonRhodesDev/packaging-workflows/.github/workflows/rust-ci.yml@v1
+
+  other:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo clippy --no-default-features --features presence --locked -- -D warnings
+      - run: cargo clippy --no-default-features --features permissions --locked -- -D warnings
+      - run: cargo test --locked
+      - run: cargo run --example probe --locked
