@@ -1,16 +1,18 @@
 [package]
 name = "rust-platform-kit"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.89"
 license = "MIT"
 description = "Session presence and macOS privacy permissions behind one API on Linux and macOS"
+readme = "README.md"
+keywords = ["presence", "idle", "logind", "macos", "permissions"]
 repository = "https://github.com/MasonRhodesDev/rust-platform-kit"
 categories = ["os"]
 
 [features]
 default = ["presence", "permissions"]
-presence = ["dep:logind-session", "dep:zbus", "dep:core-foundation"]
+presence = ["dep:logind-session", "dep:zbus", "dep:libc", "dep:core-foundation"]
 permissions = ["dep:core-foundation", "dep:objc2", "dep:objc2-av-foundation", "dep:block2"]
 
 [dependencies]
@@ -19,6 +21,7 @@ thiserror = "2"
 [target.'cfg(target_os = "linux")'.dependencies]
 logind-session = { version = "0.3", optional = true }
 zbus = { version = "6", default-features = false, features = ["tokio", "proxy"], optional = true }
+libc = { version = "0.2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = { version = "0.10", optional = true }
@@ -27,7 +30,7 @@ objc2-av-foundation = { version = "0.3", default-features = false, features = ["
 block2 = { version = "0.6", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt", "macros"] }
+tokio = { version = "1", features = ["rt", "macros", "time"] }
 
 [[example]]
 name = "probe"

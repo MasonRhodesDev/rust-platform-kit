@@ -7,7 +7,7 @@ use core_foundation::string::CFString;
 
 use super::{Error, Presence};
 
-const COMBINED_SESSION_STATE: i32 = 0;
+const HID_SYSTEM_STATE: i32 = 1;
 const ANY_INPUT_EVENT: u32 = u32::MAX;
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -32,7 +32,7 @@ pub async fn current(idle_after: Duration) -> Result<Presence, Error> {
     let locked = flag("CGSSessionScreenIsLocked");
     let inactive = !flag("kCGSSessionOnConsoleKey");
     let since_input =
-        unsafe { CGEventSourceSecondsSinceLastEventType(COMBINED_SESSION_STATE, ANY_INPUT_EVENT) };
-    let idle = Duration::from_secs_f64(since_input.max(0.0)) >= idle_after;
+        unsafe { CGEventSourceSecondsSinceLastEventType(HID_SYSTEM_STATE, ANY_INPUT_EVENT) };
+    let idle = since_input >= idle_after.as_secs_f64();
     Ok(Presence::decide(locked, inactive, idle))
 }

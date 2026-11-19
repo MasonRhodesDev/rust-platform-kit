@@ -2,6 +2,7 @@
 mod macos;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Permission {
     Accessibility,
     InputMonitoring,
@@ -10,10 +11,12 @@ pub enum Permission {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Access {
     Granted,
     Denied,
     Undecided,
+    Restricted,
 }
 
 impl Permission {
@@ -46,7 +49,7 @@ pub fn access(permission: Permission) -> Access {
 }
 
 #[cfg(target_os = "macos")]
-pub fn request(permission: Permission) -> Access {
+pub fn request(permission: Permission) {
     macos::request(permission)
 }
 
@@ -56,37 +59,11 @@ pub fn access(_permission: Permission) -> Access {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn request(_permission: Permission) -> Access {
-    Access::Granted
-}
-
-pub fn missing(permissions: &[Permission]) -> Vec<Permission> {
-    permissions
-        .iter()
-        .copied()
-        .filter(|p| access(*p) != Access::Granted)
-        .collect()
-}
-
-#[cfg(any(target_os = "macos", test))]
-fn from_hid_access(value: u32) -> Access {
-    match value {
-        0 => Access::Granted,
-        1 => Access::Denied,
-        _ => Access::Undecided,
-    }
-}
+pub fn request(_permission: Permission) {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn hid_access_maps_granted_denied_and_unknown() {
-        assert_eq!(from_hid_access(0), Access::Granted);
-        assert_eq!(from_hid_access(1), Access::Denied);
-        assert_eq!(from_hid_access(2), Access::Undecided);
-    }
 
     #[test]
     fn event_posting_is_granted_in_the_accessibility_pane() {
@@ -99,7 +76,9 @@ mod tests {
 
     #[cfg(not(target_os = "macos"))]
     #[test]
-    fn nothing_is_missing_where_the_os_has_no_privacy_gate() {
-        assert!(missing(&Permission::ALL).is_empty());
+    fn every_permission_is_granted_where_the_os_has_no_privacy_gate() {
+        assert!(Permission::ALL
+            .iter()
+            .all(|p| access(*p) == Access::Granted));
     }
 }

@@ -9,9 +9,23 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   linux:
     uses: MasonRhodesDev/packaging-workflows/.github/workflows/rust-ci.yml@v1
+
+  msrv:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.89
+      - run: cargo check --all-targets --locked
 
   other:
     strategy:
@@ -30,3 +44,4 @@ jobs:
       - run: cargo clippy --no-default-features --features permissions --locked -- -D warnings
       - run: cargo test --locked
       - run: cargo run --example probe --locked
+      - run: cargo run --example idle_taps --locked
