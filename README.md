@@ -49,7 +49,7 @@ async fn main() {
 ## Presence
 
 - `current(idle_after)` reports `Idle` once the person has been idle for `idle_after`.
-  - On macOS that is time since the last keyboard, mouse or trackpad event from hardware. Input that a program posts does not count.
+  - On macOS that is time since the last input event the HID system saw. Input a program posts at the HID or session event tap counts too, as a person would; only events posted at the annotated session tap do not. `cargo run --example idle_taps` measures this on the current Mac. A program that injects input has to discount its own events.
   - On Linux the session's idle daemon must set logind's `IdleHint` first, and `idle_after` is then measured from `IdleSinceHint`, so it adds to the desktop's own idle delay. If nothing in the session sets `IdleHint`, Linux never reports `Idle`.
   - An `idle_after` of zero means always `Idle` on macOS, and `Idle` whenever the hint is set on Linux.
 - A locked screen is `Locked` before anything else. A session that is not in the foreground (another user, another VT) is `Inactive`.
