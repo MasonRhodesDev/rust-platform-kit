@@ -25,7 +25,7 @@ pub async fn current(idle_after: Duration) -> Result<Presence, Error> {
         unsafe { CFDictionary::wrap_under_create_rule(raw) };
     let flag = |key: &'static str| {
         session
-            .find(&CFString::from_static_string(key))
+            .find(CFString::from_static_string(key))
             .and_then(|value| value.downcast::<CFBoolean>())
             .is_some_and(bool::from)
     };
